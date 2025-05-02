@@ -124,15 +124,37 @@ export class ExamStack extends cdk.Stack {
     });
 
     // let QueueA subscribe Topic1
+    //Only messages with the country property set to Ireland or China are passed to Queue A from Topic 1
     topic1.addSubscription(
       new subs.SqsSubscription(queueA, {
-        rawMessageDelivery: true,        
+        rawMessageDelivery: true,
+        filterPolicyWithMessageBody: {
+          address: sns.FilterOrPolicy.policy({
+            country: sns.FilterOrPolicy.filter(
+              sns.SubscriptionFilter.stringFilter({
+                allowlist: ["Ireland", "China"],   
+              })
+            ),
+          }),
+        },
+      })
+    );
+
+    //Only messages with the country property not set to Ireland or China are passed to Lambda Y from Topic 1
+    topic1.addSubscription(
+      new subs.LambdaSubscription(lambdaYFn, {
+        filterPolicyWithMessageBody: {
+          address: sns.FilterOrPolicy.policy({
+            country: sns.FilterOrPolicy.filter(
+              sns.SubscriptionFilter.stringFilter({
+                denylist: ["Ireland", "China"],   
+              })
+            ),
+          }),
+        },
       })
     );
     
-    //Let Lambda Y subscribe directly to Topic1
-    topic1.addSubscription(new subs.LambdaSubscription(lambdaYFn));
-
     //QueueA triggers Lambda X as the Event Source
     lambdaXFn.addEventSource(
       new events.SqsEventSource(queueA, {
