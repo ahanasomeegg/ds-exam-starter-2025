@@ -2,13 +2,14 @@ import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
-
-const ddb = createDDbDocClient();  
+import { QueryCommandInput } from "@aws-sdk/lib-dynamodb";
 const json = (statusCode: number, body: unknown) => ({
   statusCode,
   headers: { "content-type": "application/json" },
   body: JSON.stringify(body),
 });
+
+const ddb = createDDbDocClient();  
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   try {
@@ -19,40 +20,35 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       return json(400, { message: "movieId path param must be a number" });
     }
     const movieId = Number(movieIdStr);
-
-      /* ---------- 2. 验证 query 参数 role（Part A 必须提供） ---------- */
+      
       const role = event.queryStringParameters?.role;
-      if (!role) {
-        return json(400, { message: "Query string ?role=missing" });
-      }
-  
-      /* ---------- 3. 查询 DynamoDB（分区键 + 排序键） ---------- */
-      const { Items } = await ddb.send(
-        new QueryCommand({
+      const params: QueryCommandInput = role
+      ? {
           TableName: process.env.TABLE_NAME!,
           KeyConditionExpression: "#mid = :mid AND #r = :r",
-          ExpressionAttributeNames: {
-            "#mid": "movieId",
-            "#r": "role",
-          },
-          ExpressionAttributeValues: {
-            ":mid": movieId,
-            ":r": role,
-          },
+          ExpressionAttributeNames: { "#mid": "movieId", "#r": "role" },
+          ExpressionAttributeValues: { ":mid": movieId, ":r": role },
           Limit: 1,
-        })
-      );
+        }
+      : {
+          TableName: process.env.TABLE_NAME!,
+          KeyConditionExpression: "#mid = :mid",
+          ExpressionAttributeNames: { "#mid": "movieId" },
+          ExpressionAttributeValues: { ":mid": movieId },
+        };
   
-      if (!Items || Items.length === 0) {
-        return json(404, { message: "Crew member not found" });
+        const { Items } = await ddb.send(new QueryCommand(params));
+
+        if (!Items || Items.length === 0) {
+          return json(404, { message: "No crew data found" });
+        }
+
+        return json(200, role ? Items[0] : Items);
+      } catch (err) {
+        console.error(err);
+        return json(500, { message: "Internal server error" });
       }
-  
-      return json(200, Items[0]);  // 只返回单个对象
-    } catch (error) {
-      console.error(error);
-      return json(500, { message: "Internal server error" });
-    }
-  };
+    };
   
 
 function createDDbDocClient() {
