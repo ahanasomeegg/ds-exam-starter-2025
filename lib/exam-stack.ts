@@ -122,6 +122,26 @@ export class ExamStack extends cdk.Stack {
         REGION: "eu-west-1",
       },
     });
+
+    // let QueueA subscribe Topic1
+    topic1.addSubscription(
+      new subs.SqsSubscription(queueA, {
+        rawMessageDelivery: true,        
+      })
+    );
+    
+    //Let Lambda Y subscribe directly to Topic1
+    topic1.addSubscription(new subs.LambdaSubscription(lambdaYFn));
+
+    //QueueA triggers Lambda X as the Event Source
+    lambdaXFn.addEventSource(
+      new events.SqsEventSource(queueA, {
+        batchSize: 10,                   
+        enabled: true,
+      })
+    );
+    
+
     
   }
 }
