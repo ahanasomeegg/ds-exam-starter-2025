@@ -163,6 +163,8 @@ export class ExamStack extends cdk.Stack {
       })
     );
     
+    lambdaYFn.addEnvironment("QUEUE_B_URL", queueB.queueUrl);
+    queueB.grantSendMessages(lambdaYFn);
 
     
   }
